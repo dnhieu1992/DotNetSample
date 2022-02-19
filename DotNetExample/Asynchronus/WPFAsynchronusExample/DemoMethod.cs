@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,8 +9,8 @@ namespace WPFAsynchronusExample
 {
     public class ProgressReportData
     {
-        public string Url { get; set; }
-        public int Percentage { get; set; }
+        public List<WebDataResult> WebDataResult { get; set; } = new List<WebDataResult>();
+        public int PercentageCompleted { get; set; } = 0;
     }
     public class WebDataResult
     {
@@ -38,51 +38,89 @@ namespace WPFAsynchronusExample
             "https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task.whenany?view=net-6.0",
             "https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.task-1?view=net-6.0"
         };
-        private readonly WebClient client = new WebClient();
 
-        public IEnumerable<string> DownloadWebsite()
+        public IEnumerable<WebDataResult> DownloadWebsite()
         {
-            List<string> results = new List<string>();
+            List<WebDataResult> results = new List<WebDataResult>();
             foreach (var address in Address)
             {
-                var stringResult = $"{address} : {client.DownloadString(address)?.Length} {Environment.NewLine}";
-                results.Add(stringResult);
+                results.Add(RunDownloadString(address));
             }
 
             return results;
         }
 
-        public async Task<IEnumerable<string>> DownloadWebsiteAsync(IProgress<ProgressReportData> progress, CancellationToken cancellationToken)
+        public async Task DownloadWebsiteAsync(IProgress<ProgressReportData> progress, CancellationToken cancellationToken)
         {
-            var total = Address.Count() > 0 ? Address.Count : 1;
-            List<string> results = new List<string>();
+            List<WebDataResult> results = new List<WebDataResult>();
+
             foreach (var address in Address)
             {
-                var stringResult = await client.DownloadStringTaskAsync(address);
+                var stringResult = await RunDownloadStringAsync(address);
                 cancellationToken.ThrowIfCancellationRequested();
-                results.Add($"{address} : {stringResult?.Length} {Environment.NewLine}");
-                progress.Report(new ProgressReportData() { Url = address, Percentage = (results.Count * 100)/total});
+                results.Add(new WebDataResult() { Url = address, Length = stringResult.Length });
+                progress.Report(new ProgressReportData() { WebDataResult = results, PercentageCompleted = (results.Count * 100) / Address.Count });
             }
-
-            return results;
         }
 
-        public async Task<IEnumerable<WebDataResult>> DownloadWebsiteParallelAsync(IProgress<int> progress)
+        public async Task<IEnumerable<WebDataResult>> DownloadWebsiteParallelAsync(IProgress<ProgressReportData> progress)
         {
             List<Task<WebDataResult>> WebDataResults = new List<Task<WebDataResult>>();
             foreach (var address in Address)
             {
-                WebDataResults.Add(Task.Run(() => GetStringOfWebsite(address)));
+                WebDataResults.Add(Task.Run(() => RunDownloadStringAsync(address)));
             }
             var result = await Task.WhenAll(WebDataResults);
             return result;
         }
 
-        private WebDataResult GetStringOfWebsite(string address)
+        public async Task DownloadWebsiteParallelAsyncV2(IProgress<ProgressReportData> progress)
         {
-            WebClient webClient = new WebClient();
-            var result = webClient.DownloadString(address);
-            return new WebDataResult() { Url = address, Length = result.Length };
+            List<WebDataResult> WebDataResults = new List<WebDataResult>();
+            await Task.Run(() =>
+            {
+                Parallel.ForEach<string>(Address, address =>
+                {
+                    var result = RunDownloadString(address);
+                    WebDataResults.Add(new WebDataResult() { Url = address, Length = result.Length });
+                    progress.Report(new ProgressReportData() { WebDataResult = WebDataResults, PercentageCompleted = (WebDataResults.Count * 100) / Address.Count });
+                });
+            });
+        }
+
+        private WebDataResult RunDownloadString(string address)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                var result = new WebDataResult();
+                client.DefaultRequestHeaders.Accept.Clear();
+                var response = client.GetAsync(address).Result;
+                if (response.IsSuccessStatusCode && response.Content != null)
+                {
+                    var stringResult = response.Content.ReadAsStringAsync().Result;
+                    result.Url = address;
+                    result.Length = stringResult.Length;
+                }
+
+                return result;
+            }
+        }
+        private async Task<WebDataResult> RunDownloadStringAsync(string address)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                var result = new WebDataResult();
+                client.DefaultRequestHeaders.Accept.Clear();
+                var response = await client.GetAsync(address);
+                if (response.IsSuccessStatusCode && response.Content != null)
+                {
+                    var stringResult = await response.Content.ReadAsStringAsync();
+                    result.Url = address;
+                    result.Length = stringResult.Length;
+                }
+
+                return result;
+            }
         }
     }
 }

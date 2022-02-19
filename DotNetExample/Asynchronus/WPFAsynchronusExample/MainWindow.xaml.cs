@@ -36,7 +36,7 @@ namespace WPFAsynchronusExample
             stopWatch.Start();
             var results = demoMethod.DownloadWebsite();
             stopWatch.Stop();
-            PrintData(results);
+            PrintData(results.ToList());
             txtResults.Text += $"Time consume: {stopWatch.ElapsedMilliseconds}";
         }
 
@@ -50,12 +50,11 @@ namespace WPFAsynchronusExample
 
                 var stopWatch = new Stopwatch();
                 stopWatch.Start();
-                var results = await demoMethod.DownloadWebsiteAsync(progress, source.Token);
-                stopWatch.Stop();
-                PrintData(results);
+                await demoMethod.DownloadWebsiteAsync(progress, source.Token);
+                stopWatch.Stop(); ;
                 txtResults.Text += $"Time consume: {stopWatch.ElapsedMilliseconds}";
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 txtResults.Text += $"The request was cancelled.{Environment.NewLine}";
             }
@@ -63,17 +62,15 @@ namespace WPFAsynchronusExample
 
         private async void Async_Parallel_Excute_Click(object sender, RoutedEventArgs e)
         {
-            progressBar.Value = 0;
-            var progress = new Progress<int>(x => progressBar.Value = x);
+            var progress = new Progress<ProgressReportData>();
+            progress.ProgressChanged += ReportProgress;
             txtResults.Text = "";
             var stopWatch = new Stopwatch();
             stopWatch.Start();
-            var results = await demoMethod.DownloadWebsiteParallelAsync(progress);
+            //var result = await demoMethod.DownloadWebsiteParallelAsync(progress);
+            await demoMethod.DownloadWebsiteParallelAsyncV2(progress);
             stopWatch.Stop();
-            foreach(var item in results)
-            {
-                txtResults.Text += $"{item.Url}: {item.Length} {Environment.NewLine}";
-            }
+            //PrintData(result);
             txtResults.Text += $"Time consume: {stopWatch.ElapsedMilliseconds}";
         }
 
@@ -82,18 +79,19 @@ namespace WPFAsynchronusExample
             source.Cancel();
         }
 
-        private void PrintData(IEnumerable<string> results)
+        private void PrintData(IEnumerable<WebDataResult> webDataResults)
         {
-            foreach (var item in results)
+            txtResults.Text = "";
+            foreach (var item in webDataResults.ToList())
             {
-                txtResults.Text += item;
+                txtResults.Text += $"{item.Url}: {item.Length} {Environment.NewLine}";
             }
         }
 
         private void ReportProgress(object sender, ProgressReportData e)
         {
-            progressBar.Value = e.Percentage;
-            txtResults.Text += $"{e.Url} {Environment.NewLine}";
+            progressBar.Value = e.PercentageCompleted;
+            PrintData(e.WebDataResult);
         }
     }
 }
