@@ -1,10 +1,7 @@
-using PrinciplesAndDesignPatternExample;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-//Add Mini DI
 
 var app = builder.Build();
 
@@ -28,9 +25,3 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
-
-var example = new ExampleService();
-//var sample = new Sample() { Id = 1 };
-List<ISample> samples = null;
-//samples.Add(sample);
-example.CallSample(samples);

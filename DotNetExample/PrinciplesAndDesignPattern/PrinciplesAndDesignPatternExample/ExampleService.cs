@@ -6,5 +6,10 @@
         {
             return Guid.NewGuid();
         }
+
+        public void CallSample(List<ISample> samples)
+        {
+            samples.ForEach(x => { });
+        }
     }
 }
